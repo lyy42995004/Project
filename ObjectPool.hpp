@@ -1,9 +1,6 @@
-#include <iostream>
-#include <vector>
-using std::cout;
-using std::endl;
-
-#define NUM (128 * 1024)
+#pragma once
+#include "Common.hpp"
+static const int NUM = 128 * 1024;
 
 template <class T>
 class ObjectPool
@@ -12,10 +9,10 @@ public:
     T *New()
     {
         T* obj = nullptr;
-        if (_freelist)
+        if (!_freeList.isEmpty())
         {
-            obj = (T*)_freelist;
-            _freelist = NextObj(_freelist);
+			void* tmp = _freeList.Pop();
+            obj = (T*)tmp;
         }
         else
         {
@@ -44,21 +41,13 @@ public:
         // 调用析构清理定位new构造的obj
         obj->~T(); 
 
-        // 实现自由链表的头插
-        NextObj(obj) = _freelist;
-        _freelist = obj;
+		_freeList.Push(obj);
     }
 
 private:
-    // 返回自由链表的下一个节点
-    void*& NextObj(void* obj)
-    {
-        return *(void**)obj;
-    }
-
     char *_memory = nullptr;   // 指向未被使用的内存
     int _remainBytes = 0;      // 剩余可使用字节数
-    void *_freelist = nullptr; // 自由链表的头节点
+	FreeList _freeList;        // 用于管理自由链表
 };
 
 // 测试
