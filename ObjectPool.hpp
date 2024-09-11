@@ -24,7 +24,7 @@ public:
             if (_remainBytes < objSize)
             {
                 _remainBytes = NUM; // 剩余不够的大小舍弃?
-                _memory = (char *)malloc(_remainBytes);
+                _memory = (char *)malloc(NUM);
                 if (_memory == nullptr)
                     throw std::bad_alloc();
             }

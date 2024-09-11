@@ -1,0 +1,36 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/mnt/d/Programming/CPP/ConcurrentMemoryPool/Common.hpp
+iostream
+-
+vector
+-
+assert.h
+-
+thread
+-
+
+/mnt/d/Programming/CPP/ConcurrentMemoryPool/ConcurrentAlloc.hpp
+ThreadCache.hpp
+/mnt/d/Programming/CPP/ConcurrentMemoryPool/ThreadCache.hpp
+
+/mnt/d/Programming/CPP/ConcurrentMemoryPool/ObjectPool.hpp
+Common.hpp
+/mnt/d/Programming/CPP/ConcurrentMemoryPool/Common.hpp
+
+/mnt/d/Programming/CPP/ConcurrentMemoryPool/ThreadCache.hpp
+Common.hpp
+/mnt/d/Programming/CPP/ConcurrentMemoryPool/Common.hpp
+
+/mnt/d/Programming/CPP/ConcurrentMemoryPool/UnitTest.cpp
+ObjectPool.hpp
+/mnt/d/Programming/CPP/ConcurrentMemoryPool/ObjectPool.hpp
+ConcurrentAlloc.hpp
+/mnt/d/Programming/CPP/ConcurrentMemoryPool/ConcurrentAlloc.hpp
+

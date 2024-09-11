@@ -2,16 +2,21 @@
 
 #include <iostream>
 #include <vector>
-#include <assert.h>
+#include <cassert>
 #include <thread>
+#include <mutex>
 using std::cout;
 using std::endl;
 
-//小于等于MAX_BYTES，就找thread cache申请
-//大于MAX_BYTES，就直接找page cache或者系统堆申请
+// 小于等于MAX_BYTES，就找thread cache申请
+// 大于MAX_BYTES，就直接找page cache或者系统堆申请
 static const int MAX_BYTES = 256 * 1024;
-//thread cache和central cache自由链表哈希桶的表大小
+// thread cache和central cache自由链表哈希桶的表大小
 static const size_t NFREELISTS = 208;
+// page cache中哈希桶的个数
+static const size_t NPAGES = 129;
+// 页大小转换偏移，即一页定义为2^13，也就是8KB
+static const size_t PAGE_SHIFT = 13;
 
 // 获取一个内存块中存储的指向下一个内存块的指针 
 void*& NextObj(void* obj)
@@ -37,12 +42,25 @@ public:
         _freelist = NextObj(_freelist); // 头删
         return obj;
     }
+    //插入一段范围的对象到自由链表
+    void PushRange(void* start, void* end)
+    {
+        assert(start && end);
+        // 头插
+        NextObj(end) = _freelist;
+        _freelist = start;
+    }
     bool isEmpty()
     {
         return _freelist == nullptr;
     }
+    size_t& maxSize()
+    {
+        return _maxSize;
+    }
 private:
     void* _freelist = nullptr;
+    size_t _maxSize = 1;
 };
 
 //     字节数           对齐数      哈希桶下标
@@ -97,7 +115,30 @@ public:
             return -1;
         } 
     }
+    // thread cache向central cache获取内存的大小
+    static size_t NumMoveSize(size_t size)
+    {
+        assert(size > 0);
 
+        // 给大内存和小内存适当分配内存
+        size_t num = MAX_BYTES / size;
+        if (num < 2)
+            num = 2;
+        else if (num > 512)
+            num = 512;
+        return num;
+    }
+    //central cache一次向page cache获取多少页
+    static size_t NumMovePage(size_t size)
+    {
+        size_t num = NumMoveSize(size); // 获取thread cache向central cache的内存数量
+        size_t bytes = num * size; // 计算出总共需要的内存
+
+        size_t nPage = bytes >> PAGE_SHIFT;
+        if (nPage == 0)
+            nPage = 1;
+        return nPage;
+    }
 private:
     // size_t _RoundUp(size_t bytes, size_t alignNum)
     // {
@@ -118,4 +159,84 @@ private:
 	{
 		return ((bytes + (1 << alignShift) - 1) >> alignShift) - 1;
 	}
+};
+
+// 一页大约8k，进程地址空间在不同位下分配的页数不同
+#if _WIN64 || __x86_64__
+    typedef unsigned long long PAGE_ID;
+#elif _WIN32 || __i386__
+    typedef size_t PAGE_ID;
+#endif
+
+struct Span
+{
+    PAGE_ID _pageID = 0;       // 大块内存起始页的页号
+    size_t _n = 0;             // 页的数量
+
+    Span* _next = nullptr;     // 双向链表
+    Span* _prev = nullptr;
+
+    size_t _useCount = 0;      // 被使用的页数
+    void* _freeList = nullptr; // 被切好的小块内存的自由链表
+};
+
+// 双向带头链表由于管理每一个哈希桶
+class SpanList
+{
+public:
+    SpanList()
+    {
+        _head = new Span;
+        _head->_next = _head;
+        _head->_prev = _head;
+    }
+    void Insert(Span* pos, Span* newNode)
+    {
+        assert(pos);
+        assert(newNode);
+
+        Span* prev = pos->_prev;
+        Span* next = pos->_next;
+        prev->_next = newNode;
+        newNode->_prev = prev;
+        newNode->_next = next;
+        next->_prev = newNode;
+    }
+    void PushFront(Span* span)
+    {
+        Insert(Begin(), span);
+    }
+    void Erase(Span* pos)
+    {
+        assert(pos);
+        assert(pos != _head);
+
+        Span* prev = pos->_prev;
+        Span* next = pos->_next;
+        prev->_next = next;
+        next->_prev = prev;
+    }
+    Span* PopFront()
+    {
+        Span* front = _head->_next;
+        Erase(front);
+        return front;
+    }
+    bool isEmpty()
+    {
+        return _head == _head->_next;
+    }
+    // 模拟迭代器
+    Span* Begin()
+    {
+        return _head->_next; // 第一个节点
+    }
+    Span* End()
+    {
+        return _head; // 最后一个节点的下一个
+    }
+private:
+    Span* _head;
+public:
+    std::mutex _mtx; // 每一个哈希桶有一个锁
 };
