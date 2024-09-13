@@ -34,10 +34,10 @@ public:
         }
         // 没有大于k页的span了，向内存申请大页
         Span* bigSpan = new Span;
-        bigSpan->_pageID = (PAGE_ID)SystemAlloc(NPAGES - 1) >> PAGE_SHIFT;
+        bigSpan->_pageID = ((PAGE_ID)SystemAlloc(NPAGES - 1)) >> PAGE_SHIFT;
         bigSpan->_n = NPAGES - 1;
         _spanList[bigSpan->_n].PushFront(bigSpan);
-    
+
         // 申请128页span后，复用自己
         return NewSpan(k);
     }

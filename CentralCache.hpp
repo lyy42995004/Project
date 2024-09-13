@@ -60,7 +60,7 @@ public:
 
         // 大块内存的起始地址和内存大小
         char* start = (char*)(newSpan->_pageID << PAGE_SHIFT); 
-        size_t bytes = newSpan->_n;
+        size_t bytes = newSpan->_n << PAGE_SHIFT;
         char* end = start + bytes;
          
         // 把大块内存切成自由链表链接起来

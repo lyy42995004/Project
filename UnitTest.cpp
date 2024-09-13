@@ -22,9 +22,19 @@ void TestTLS()
     t2.join();
 }
 
+// 测试申请内存的流程
+void TestConcurrentAlloc1()
+{
+    void* p1 = ConcurrentAlloc(1);
+    void* p2 = ConcurrentAlloc(3);
+    void* p3 = ConcurrentAlloc(5);
+    void* p4 = ConcurrentAlloc(8);
+}
+
 int main()
 {
     // TestObjectPool();
-    TestTLS();
+    // TestTLS();
+    TestConcurrentAlloc1();
     return 0;
 }

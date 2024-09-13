@@ -40,8 +40,8 @@ public:
         assert(actualNum >= 1);
         if (actualNum == 1)
             assert(start == end);
-        else
-            _freeLists[index].PushRange(start, end);
+        else // 申请到对象有多个时，将剩余对象挂到自由链表中
+            _freeLists[index].PushRange(NextObj(start), end);
         return start;
     }
 
