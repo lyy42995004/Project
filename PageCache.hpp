@@ -28,10 +28,18 @@ public:
                 nSpan->_n -= k;
                 nSpan->_pageID += k;
 
-                _spanList[k].PushFront(kSpan);
+                _spanList[nSpan->_n].PushFront(nSpan);
                 return kSpan;
             }
         }
+        // 没有大于k页的span了，向内存申请大页
+        Span* bigSpan = new Span;
+        bigSpan->_pageID = (PAGE_ID)SystemAlloc(NPAGES - 1) >> PAGE_SHIFT;
+        bigSpan->_n = NPAGES - 1;
+        _spanList[bigSpan->_n].PushFront(bigSpan);
+    
+        // 申请128页span后，复用自己
+        return NewSpan(k);
     }
 private:
     SpanList _spanList[NPAGES];

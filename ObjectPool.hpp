@@ -23,8 +23,8 @@ public:
             // 剩余字节不够一个T类型时扩容
             if (_remainBytes < objSize)
             {
-                _remainBytes = NUM; // 剩余不够的大小舍弃?
-                _memory = (char *)malloc(NUM);
+                _remainBytes = NUM; 
+                _memory = (char *)SystemAlloc(NUM >> 13);
                 if (_memory == nullptr)
                     throw std::bad_alloc();
             }

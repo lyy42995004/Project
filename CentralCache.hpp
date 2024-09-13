@@ -50,7 +50,14 @@ public:
         }
 
         // 2.向Page Cache申请Span
+        //先把central cache的桶锁解掉，其他对象释放内存对象回来，不会阻塞
+        spanList._mtx.unlock();
+
+        PageCache::GetInstance()->_mtx.lock();
         Span* newSpan = PageCache::GetInstance()->NewSpan(SizeClass::NumMovePage(size)); 
+        PageCache::GetInstance()->_mtx.unlock();
+        //新申请的span其他线程暂时看不到，无需加锁
+
         // 大块内存的起始地址和内存大小
         char* start = (char*)(newSpan->_pageID << PAGE_SHIFT); 
         size_t bytes = newSpan->_n;
@@ -68,6 +75,8 @@ public:
             start += size;
         }
         NextObj(tail) = nullptr;
+
+        spanList._mtx.lock();
         spanList.PushFront(newSpan);
 
         return newSpan;

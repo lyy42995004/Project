@@ -18,6 +18,22 @@ static const size_t NPAGES = 129;
 // 页大小转换偏移，即一页定义为2^13，也就是8KB
 static const size_t PAGE_SHIFT = 13;
 
+#ifdef _WIN32
+    #include <windows.h>
+#elif __linux__ || __unix__ 
+    #include <sys/mman.h>
+#endif
+
+static void* SystemAlloc(size_t kPage)
+{
+#ifdef _WIN32
+    void* ptr = VirtualAlloc(0, kPage << PAGE_SHIFT, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+#elif __linux__ || __unix__
+    void* ptr = mmap(nullptr, kPage << PAGE_SHIFT, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+#endif
+    return ptr;
+}
+
 // 获取一个内存块中存储的指向下一个内存块的指针 
 void*& NextObj(void* obj)
 {
