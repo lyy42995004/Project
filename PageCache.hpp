@@ -13,7 +13,18 @@ public:
     //获取一个k页的span
 	Span* NewSpan(size_t k)
     {
-        assert(k > 0 && k < NPAGES);
+        assert(k > 0);
+        if (k > NPAGES - 1)
+        {
+            void* ptr = SystemAlloc(k);
+            Span* newSpan = new Span;
+            newSpan->_pageID = (PAGE_ID)ptr >> PAGE_SHIFT;
+            newSpan->_n = k;
+            // 建立映射
+            _idSpanMap[newSpan->_pageID] = newSpan;
+            return newSpan;
+        }
+
         if (!_spanList[k].isEmpty())
             return _spanList[k].PopFront();
         for (int i = k + 1; i < NPAGES; i++)
@@ -69,6 +80,12 @@ public:
     // 释放空闲的span回到PageCache，并合并相邻的span
 	void ReleaseSpanToPageCache(Span* span)
     {
+        if (span->_n > NPAGES - 1)
+        {
+            void* ptr = (void*)(span->_pageID << PAGE_SHIFT);
+            SystemFree(ptr, span->_n);
+            delete span;
+        }
         // 对span前后页进行合并，缓解内存碎片问题
         // 向前合并
         while (1)

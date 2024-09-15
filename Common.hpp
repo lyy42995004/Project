@@ -133,7 +133,7 @@ public:
         else if (bytes <= 256 * 1024)
             return _RoundUp(bytes, 8 * 1024);
         else
-            return _RoundUp(bytes, 2 << PAGE_SHIFT);
+            return _RoundUp(bytes, 1 << PAGE_SHIFT);
     }
     //获取对应哈希桶的下标
     static size_t Index(size_t bytes)

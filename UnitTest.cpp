@@ -33,7 +33,7 @@ void TestConcurrentAlloc1()
 
 void TestConcurrentAlloc2()
 {
-    size_t size = 8 * 8 * 1024;
+    size_t size = 256 * 1024 - 1;
     for (int i = 0; i < 1024; i++)
         ConcurrentAlloc(size);
     ConcurrentAlloc(size);
@@ -100,7 +100,7 @@ int main()
     // TestObjectPool();
     // TestTLS();
     // TestConcurrentAlloc1();
-    // TestConcurrentAlloc2();
+    TestConcurrentAlloc2();
     // TestConcurrentFree();
     // MultiThreadAlloc();
     // TestMultiThread();

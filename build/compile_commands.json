@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/mnt/d/Programming/CPP/ConcurrentMemoryPool/build",
+  "command": "/usr/bin/g++    -g   -o CMakeFiles/UnitTest.dir/UnitTest.cpp.o -c /mnt/d/Programming/CPP/ConcurrentMemoryPool/UnitTest.cpp",
+  "file": "/mnt/d/Programming/CPP/ConcurrentMemoryPool/UnitTest.cpp"
+}
+]

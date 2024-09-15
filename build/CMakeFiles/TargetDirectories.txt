@@ -1,0 +1,3 @@
+/mnt/d/Programming/CPP/ConcurrentMemoryPool/build/CMakeFiles/rebuild_cache.dir
+/mnt/d/Programming/CPP/ConcurrentMemoryPool/build/CMakeFiles/edit_cache.dir
+/mnt/d/Programming/CPP/ConcurrentMemoryPool/build/CMakeFiles/UnitTest.dir
