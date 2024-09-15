@@ -27,6 +27,14 @@ public:
                 kSpan->_pageID = nSpan->_pageID;
                 nSpan->_n -= k;
                 nSpan->_pageID += k;
+                
+                // 用于page cache合并span时的前后查找
+                _idSpanMap[nSpan->_pageID] = nSpan;
+                _idSpanMap[nSpan->_pageID + nSpan->_n - 1] = nSpan;
+
+                // 构建pageid与span指针的映射关系，用于central cache回收span
+                for (PAGE_ID i = 0; i < kSpan->_n; i++)
+                    _idSpanMap[kSpan->_pageID + i] = kSpan;
 
                 _spanList[nSpan->_n].PushFront(nSpan);
                 return kSpan;
@@ -41,8 +49,68 @@ public:
         // 申请128页span后，复用自己
         return NewSpan(k);
     }
+    //获取自由链表指针到span的映射
+    Span* PageCache::MapObjectToSpan(void* obj)
+    {
+        PAGE_ID id = ((PAGE_ID)obj) >> PAGE_SHIFT;
+        auto map = _idSpanMap.find(id);
+        if (map != _idSpanMap.end())
+            return map->second;
+        else
+        {
+            assert(false);
+            return nullptr;
+        }
+    }
+    // 释放空闲的span回到PageCache，并合并相邻的span
+	void ReleaseSpanToPageCache(Span* span)
+    {
+        _spanList[span->_n].Erase(span);
+        // 对span前后页进行合并，缓解内存碎片问题
+        // 向前合并
+        while (1)
+        {
+            PAGE_ID prevID = span->_pageID - 1;
+            // 查找是否存在前一个span
+            auto map = _idSpanMap.find(prevID);
+            if (map == _idSpanMap.end())
+                break;
+            Span* prevSpan = map->second;
+            // span是否被使用
+            if (prevSpan->_isUse)
+                break;
+            // 大于128页的span，page cache无法管理
+            if (prevSpan->_n + span->_n > NPAGES - 1)
+                break;
+
+            _spanList[prevSpan->_n].Erase(prevSpan);
+            span->_pageID = prevSpan->_pageID;
+            span->_n += prevSpan->_n;
+            delete prevSpan;
+        }
+        // 向后合并
+        while (1)
+        {
+            PAGE_ID nextID = span->_pageID + span->_n;
+            auto map = _idSpanMap.find(nextID);
+            if (map == _idSpanMap.end())
+                break;
+            Span* nextSpan = map->second;
+            if (nextSpan->_isUse)
+                break;
+            if (nextSpan->_n + span->_n > NPAGES - 1)
+                break;
+
+            _spanList[nextSpan->_n].Erase(nextSpan);
+            span->_n += nextSpan->_n;
+            delete nextSpan;
+        }
+        _spanList[span->_n].PushFront(span);
+        span->_isUse = false;
+    }
 private:
     SpanList _spanList[NPAGES];
+    std::unordered_map<PAGE_ID, Span*> _idSpanMap;
 public:
     std::mutex _mtx;
 private:

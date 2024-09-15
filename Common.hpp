@@ -5,6 +5,7 @@
 #include <cassert>
 #include <thread>
 #include <mutex>
+#include <unordered_map>
 using std::cout;
 using std::endl;
 
@@ -49,22 +50,36 @@ public:
         assert(obj);
         NextObj(obj) = _freelist; // 将obj插入链表头部
         _freelist = obj;          // 更新头指针
+        _size++;
     }    
-    //从自由链表头部获取一个对象
+    // 从自由链表头部获取一个对象
     void* Pop()
     {
         assert(_freelist);
         void* obj = _freelist;
         _freelist = NextObj(_freelist); // 头删
+        _size--;
         return obj;
     }
-    //插入一段范围的对象到自由链表
-    void PushRange(void* start, void* end)
+    // 插入一段范围的对象到自由链表
+    void PushRange(void* start, void* end, int n)
     {
         assert(start && end);
         // 头插
         NextObj(end) = _freelist;
         _freelist = start;
+        _size += n;
+    }
+    // 删除一段自由链表
+    void PopRange(void*& start, void*& end, size_t n)
+    {
+        assert (_size >= n);
+        start = end = _freelist;
+        while (n--)
+            end = NextObj(end); 
+        _freelist = NextObj(end); // 自由链表指向end的下一个
+        NextObj(end) = nullptr;   // end的下一个为空
+        _size -= n;
     }
     bool isEmpty()
     {
@@ -74,9 +89,14 @@ public:
     {
         return _maxSize;
     }
+    size_t Size()
+    {
+        return _size;
+    }
 private:
     void* _freelist = nullptr;
     size_t _maxSize = 1;
+    size_t _size = 0;
 };
 
 //     字节数           对齐数      哈希桶下标
@@ -194,6 +214,8 @@ struct Span
 
     size_t _useCount = 0;      // 被使用的页数
     void* _freeList = nullptr; // 被切好的小块内存的自由链表
+
+    bool _isUse = false;       // 判断是否被central cache使用
 };
 
 // 双向带头链表由于管理每一个哈希桶

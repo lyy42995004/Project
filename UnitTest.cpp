@@ -31,10 +31,18 @@ void TestConcurrentAlloc1()
     void* p4 = ConcurrentAlloc(8);
 }
 
+void TestConcurrentAlloc2()
+{
+    for (int i = 0; i < 1024; i++)
+        ConcurrentAlloc(8);
+    ConcurrentAlloc(6);
+}
+
 int main()
 {
     // TestObjectPool();
     // TestTLS();
-    TestConcurrentAlloc1();
+    // TestConcurrentAlloc1();
+    TestConcurrentAlloc2();
     return 0;
 }

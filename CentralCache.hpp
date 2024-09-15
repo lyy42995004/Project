@@ -41,7 +41,7 @@ public:
     {
         // 1.先找有无非空的Span
         Span* it = spanList.Begin();
-        while (it < spanList.End())
+        while (it != spanList.End()) // 必须用!=判断
         {
             if (it->_freeList != nullptr)
                 return it;
@@ -55,6 +55,7 @@ public:
 
         PageCache::GetInstance()->_mtx.lock();
         Span* newSpan = PageCache::GetInstance()->NewSpan(SizeClass::NumMovePage(size)); 
+        newSpan->_isUse = true; // 这页被central cache使用
         PageCache::GetInstance()->_mtx.unlock();
         //新申请的span其他线程暂时看不到，无需加锁
 
@@ -81,6 +82,38 @@ public:
 
         return newSpan;
     }
+    // 归还自由链表给span
+    void ReleaseListToSpans(void* start, size_t size)
+    {
+        size_t index = SizeClass::Index(size);
+        _SPanList[index]._mtx.lock();
+        while (start)
+        {
+            void* next = NextObj(start);
+            Span* span = PageCache::GetInstance()->MapObjectToSpan(start);
+            // 头插
+            NextObj(start) = span->_freeList;
+            span->_freeList = start;
+            span->_useCount--; // 使用的数量减一
+
+            // 当这页没有在被使用时，返还内存给page cache合并出大的页
+            if (span->_useCount == 0)
+            {
+                _SPanList[index].Erase(span);
+                span->_freeList = nullptr;
+                span->_next = span->_prev = nullptr;
+
+                _SPanList[index]._mtx.unlock();
+                PageCache::GetInstance()->_mtx.lock(); // 换锁，为了防止central cache阻塞
+                PageCache::GetInstance()->ReleaseSpanToPageCache(span);
+                PageCache::GetInstance()->_mtx.unlock();
+                _SPanList[index]._mtx.lock();
+            }
+            start = next;
+        }
+        _SPanList[index]._mtx.unlock();
+    }
+
 private:
     SpanList _SPanList[NFREELISTS];
 private:

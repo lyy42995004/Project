@@ -15,16 +15,6 @@ public:
         else
             return FetchFromCentralCache(index, alignSize);
     }
-    // 释放内存对象
-	void Deallocate(void* ptr, size_t size)
-    {
-        assert(ptr);
-        assert(size <= MAX_BYTES);
-
-        // 头插
-        size_t index = SizeClass::Index(size);
-        _freeLists[index].Push(ptr);
-    }
     // 从中心缓存获取对象
     // size是已经对齐过的大小了
 	void* FetchFromCentralCache(size_t index, size_t size)
@@ -41,8 +31,32 @@ public:
         if (actualNum == 1)
             assert(start == end);
         else // 申请到对象有多个时，将剩余对象挂到自由链表中
-            _freeLists[index].PushRange(NextObj(start), end);
+            _freeLists[index].PushRange(NextObj(start), end, actualNum - 1);
         return start;
+    }
+    // 释放内存对象
+	void Deallocate(void* ptr, size_t size)
+    {
+        assert(ptr);
+        assert(size <= MAX_BYTES);
+
+        // 头插
+        size_t index = SizeClass::Index(size);
+        _freeLists[index].Push(ptr);
+
+        // 释放对象过多，自由链表过长，向central cache归还内存
+        if (_freeLists[index].Size() > _freeLists[index].maxSize())
+            ListTooLong(_freeLists[index], size);
+    }
+    // 归回maxSize个的自由链表内存
+    void ListTooLong(FreeList& freeList, size_t size)
+    {
+        void* start = nullptr;
+        void* end = nullptr;
+        freeList.PopRange(start, end, freeList.maxSize());
+
+        //将取出的对象还给central cache中对应的span
+        CentralCache::getInstance()->ReleaseListToSpans(start, size);
     }
 
 private:
