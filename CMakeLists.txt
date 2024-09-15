@@ -7,4 +7,4 @@ add_executable(UnitTest UnitTest.cpp)
 # 链接pthread库
 target_link_libraries(UnitTest pthread)
 # 设置构建类型
-set(CMAKE_BUILD_TYPE "Debug")
+# set(CMAKE_BUILD_TYPE "Debug")

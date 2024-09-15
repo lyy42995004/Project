@@ -45,7 +45,7 @@ public:
         _freeLists[index].Push(ptr);
 
         // 释放对象过多，自由链表过长，向central cache归还内存
-        if (_freeLists[index].Size() > _freeLists[index].maxSize())
+        if (_freeLists[index].Size() >= _freeLists[index].maxSize())
             ListTooLong(_freeLists[index], size);
     }
     // 归回maxSize个的自由链表内存

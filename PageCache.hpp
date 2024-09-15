@@ -42,7 +42,11 @@ public:
         }
         // 没有大于k页的span了，向内存申请大页
         Span* bigSpan = new Span;
-        bigSpan->_pageID = ((PAGE_ID)SystemAlloc(NPAGES - 1)) >> PAGE_SHIFT;
+        // mmap返回的地址是系统页大小（大多数为 4KB，2^12）的整数倍
+        // 但不一定是2^13的整数倍，这就会导致左移13位后再右移13位可能会与原来的数不相等
+        // 所以将span大小8KB改为4KB（2^12)
+        void* ptr = SystemAlloc(NPAGES - 1);
+        bigSpan->_pageID = ((PAGE_ID)ptr) >> PAGE_SHIFT;
         bigSpan->_n = NPAGES - 1;
         _spanList[bigSpan->_n].PushFront(bigSpan);
 
@@ -50,7 +54,7 @@ public:
         return NewSpan(k);
     }
     //获取自由链表指针到span的映射
-    Span* PageCache::MapObjectToSpan(void* obj)
+    Span* MapObjectToSpan(void* obj)
     {
         PAGE_ID id = ((PAGE_ID)obj) >> PAGE_SHIFT;
         auto map = _idSpanMap.find(id);
@@ -65,7 +69,6 @@ public:
     // 释放空闲的span回到PageCache，并合并相邻的span
 	void ReleaseSpanToPageCache(Span* span)
     {
-        _spanList[span->_n].Erase(span);
         // 对span前后页进行合并，缓解内存碎片问题
         // 向前合并
         while (1)
@@ -107,6 +110,9 @@ public:
         }
         _spanList[span->_n].PushFront(span);
         span->_isUse = false;
+
+        _idSpanMap[span->_pageID] = span;
+        _idSpanMap[span->_pageID + span->_n - 1] = span;
     }
 private:
     SpanList _spanList[NPAGES];

@@ -16,8 +16,8 @@ static const int MAX_BYTES = 256 * 1024;
 static const size_t NFREELISTS = 208;
 // page cache中哈希桶的个数
 static const size_t NPAGES = 129;
-// 页大小转换偏移，即一页定义为2^13，也就是8KB
-static const size_t PAGE_SHIFT = 13;
+// 页大小转换偏移，即一页定义为2^12，也就是4KB
+static const size_t PAGE_SHIFT = 12;
 
 #ifdef _WIN32
     #include <windows.h>
@@ -32,7 +32,18 @@ static void* SystemAlloc(size_t kPage)
 #elif __linux__ || __unix__
     void* ptr = mmap(nullptr, kPage << PAGE_SHIFT, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 #endif
+    if (ptr == nullptr)
+		throw std::bad_alloc();
     return ptr;
+}
+
+static void SystemFree(void* ptr, size_t kPage)
+{
+#ifdef _WIN32
+    VirtualFree(ptr, 0, MEM_RELEASE);
+#elif __linux__ || __unix__
+    munmap(ptr, kPage << PAGE_SHIFT); 
+#endif
 }
 
 // 获取一个内存块中存储的指向下一个内存块的指针 
@@ -75,7 +86,7 @@ public:
     {
         assert (_size >= n);
         start = end = _freelist;
-        while (n--)
+        for (size_t i = 0; i < n - 1; i++)
             end = NextObj(end); 
         _freelist = NextObj(end); // 自由链表指向end的下一个
         NextObj(end) = nullptr;   // end的下一个为空
@@ -122,29 +133,21 @@ public:
         else if (bytes <= 256 * 1024)
             return _RoundUp(bytes, 8 * 1024);
         else
-        {
-            assert(false);
-            return -1;
-        }
+            return _RoundUp(bytes, 2 << PAGE_SHIFT);
     }
     //获取对应哈希桶的下标
     static size_t Index(size_t bytes)
     {
         if (bytes <= 128)
-            // return _Index(bytes, 8, 0);
-            return _Index(bytes, 8) + 0; // 加上前面的坐标
+            return _Index(bytes, 3) + 0; // 加上前面的坐标
         else if (bytes <= 1024)
-            // return _Index(bytes, 16, 16);
-            return _Index(bytes, 16) + 16;
+            return _Index(bytes - 128, 4) + 16;
         else if (bytes <= 8 * 1024)
-            // return _Index(bytes, 128, 72);
-            return _Index(bytes, 128) + 72;
+            return _Index(bytes - 1024, 7) + 72;
         else if (bytes <= 64 * 1024)
-            // return _Index(bytes, 1024, 128);
-            return _Index(bytes, 1024) + 128;
+            return _Index(bytes - 8 * 1024, 10) + 128;
         else if (bytes <= 256 * 1024)
-            // return _Index(bytes, 8 * 1024, 184);
-            return _Index(bytes, 8 * 1024) + 184;
+            return _Index(bytes - 64 * 1024, 13) + 184;
         else
         {
             assert(false);
@@ -176,12 +179,13 @@ public:
         return nPage;
     }
 private:
-    // size_t _RoundUp(size_t bytes, size_t alignNum)
+    // static size_t _RoundUp(size_t bytes, size_t alignNum)
     // {
     //     return (bytes % alignNum ? (bytes / alignNum + 1) * alignNum : bytes);
     // }
-    // size_t _Index(size_t bytes, size_t alignNum, size_t pos)
+    // static size_t _Index(size_t bytes, size_t alignShift)
     // {
+    //     size_t alignNum = 1 << alignShift;
     //     return (bytes % alignNum ? bytes / alignNum : bytes / alignNum - 1);
     // }
 
@@ -191,7 +195,7 @@ private:
 		return ((bytes + alignNum - 1)&~(alignNum - 1));
 	}
     //位运算
-	static inline size_t _Index(size_t bytes, size_t alignShift)
+    static inline size_t _Index(size_t bytes, size_t alignShift)
 	{
 		return ((bytes + (1 << alignShift) - 1) >> alignShift) - 1;
 	}
