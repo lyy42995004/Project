@@ -113,16 +113,16 @@ void TestBigAlloc()
     ConcurrentFree(p2);
 }
 
-int main()
-{
-    // TestObjectPool();
-    // TestTLS();
-    // TestConcurrentAlloc1();
-    // TestConcurrentAlloc2();
-    // TestConcurrentFree();
-    // MultiThreadAlloc();
-    // TestMultiThread();
-    // TestShift();
-    TestBigAlloc();
-    return 0;
-}
+// int main()
+// {
+//     // TestObjectPool();
+//     // TestTLS();
+//     // TestConcurrentAlloc1();
+//     // TestConcurrentAlloc2();
+//     // TestConcurrentFree();
+//     // MultiThreadAlloc();
+//     // TestMultiThread();
+//     // TestShift();
+//     TestBigAlloc();
+//     return 0;
+// }
