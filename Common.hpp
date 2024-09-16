@@ -16,8 +16,8 @@ static const int MAX_BYTES = 256 * 1024;
 static const size_t NFREELISTS = 208;
 // page cache中哈希桶的个数
 static const size_t NPAGES = 129;
-// 页大小转换偏移，即一页定义为2^12，也就是4KB
-static const size_t PAGE_SHIFT = 12;
+// 页大小转换偏移，即一页定义为2^13，也就是8KB
+static const size_t PAGE_SHIFT = 13;
 
 #ifdef _WIN32
     #include <windows.h>

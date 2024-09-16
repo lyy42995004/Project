@@ -55,8 +55,13 @@ public:
         Span* bigSpan = new Span;
         // mmap返回的地址是系统页大小（大多数为 4KB，2^12）的整数倍
         // 但不一定是2^13的整数倍，这就会导致左移13位后再右移13位可能会与原来的数不相等
-        // 所以将span大小8KB改为4KB（2^12)
+        // 所以不是2^13的整数倍时重新申请
         void* ptr = SystemAlloc(NPAGES - 1);
+        if (((PAGE_ID)ptr >> 12) % 2 == 1)
+        {
+            cout << ptr << ": 不是2^13的倍数" << endl;
+            exit(1);
+        }
         bigSpan->_pageID = ((PAGE_ID)ptr) >> PAGE_SHIFT;
         bigSpan->_n = NPAGES - 1;
         _spanList[bigSpan->_n].PushFront(bigSpan);
@@ -85,6 +90,7 @@ public:
             void* ptr = (void*)(span->_pageID << PAGE_SHIFT);
             SystemFree(ptr, span->_n);
             delete span;
+            return;
         }
         // 对span前后页进行合并，缓解内存碎片问题
         // 向前合并

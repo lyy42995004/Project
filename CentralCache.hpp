@@ -68,7 +68,7 @@ public:
         // 尾插，可以提高该线程CPU缓存利用率
         newSpan->_freeList = start;
         start += size;
-       void* tail = newSpan->_freeList;
+        void* tail = newSpan->_freeList;
         while (start < end)
         {
             NextObj(tail) = start;

@@ -1,5 +1,6 @@
 #include "ObjectPool.hpp"
 #include "ConcurrentAlloc.hpp"
+#include <ctime>
 
 void Alloc1()
 {
@@ -72,27 +73,45 @@ void TestMultiThread()
     t2.join();
 }
 
-// 验证SystemAllocs()返回的指针是不是2^13的倍数
+// 验证mmap()返回的指针是不是2^13的倍数
+// 不是的话能否通过重新申请获得是2^13的倍数的地址
 void TestShift()
 {
     std::vector<void*> v;
-	for (int i = 0; i < 10000; i++)
+	for (int i = 0; i < 10; i++)
 	{
-		void* ptr = SystemAlloc(1);
-		v.push_back(ptr);
-		unsigned long long p = (unsigned long long)ptr;
-		cout << p << endl;
-		if ((p >> 12) % 2 == 1)
+        void* ptr = mmap(nullptr, (NPAGES - 1) << PAGE_SHIFT, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        int cnt = 1;
+		while (((PAGE_ID)ptr >> 12) % 2 == 1)
 		{
-			cout << "不是2^13的倍数" << endl;
-			break;
+			cout << ptr << ": 不是2^13的倍数" << endl;
+            munmap(ptr, (NPAGES - 1) << PAGE_SHIFT);
+            void* hint  = (void*)((char*)ptr + (NPAGES << PAGE_SHIFT));
+            // srand(time(nullptr));
+            ptr = mmap(hint, (NPAGES - 1) << PAGE_SHIFT, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+            cnt++;
+            if (cnt > 10)
+            {
+                cout << "申请失败" << endl;
+                return;
+            }
 		}
+        cout << ptr << ":" << cnt << "次申请成功" << endl;
+        v.push_back(ptr);
 	}
 	for (auto ptr : v)
-		SystemFree(ptr, 1);
+        munmap(ptr, (NPAGES - 1) << PAGE_SHIFT); 
     // void* ptr = (void*)(0x7ffff7157000);
     // cout << "ptr:" << ptr << endl << "ptr >> 13 << 13 = " << endl 
     //      << (void*)(((PAGE_ID)ptr) >> 13 << 13) << endl;
+}
+
+void TestBigAlloc()
+{
+    void* p1 = ConcurrentAlloc(257 * 1024); // 257KB, 33页
+    ConcurrentFree(p1, 257 * 1024);
+    void* p2 = ConcurrentAlloc(129 * 8 * 1024); // 129页
+    ConcurrentFree(p2, 129 * 8 * 1024);
 }
 
 int main()
@@ -100,10 +119,11 @@ int main()
     // TestObjectPool();
     // TestTLS();
     // TestConcurrentAlloc1();
-    TestConcurrentAlloc2();
+    // TestConcurrentAlloc2();
     // TestConcurrentFree();
     // MultiThreadAlloc();
     // TestMultiThread();
     // TestShift();
+    // TestBigAlloc();
     return 0;
 }

@@ -9,7 +9,7 @@ static void* ConcurrentAlloc(size_t size)
     {
         // 计算需要申请页数
         size_t alignSize = SizeClass::RoundUp(size);
-        size_t kPage = alignSize << PAGE_SHIFT;
+        size_t kPage = alignSize >> PAGE_SHIFT;
         // 向page cache申请span
         PageCache::GetInstance()->_mtx.lock();
         Span* span = PageCache::GetInstance()->NewSpan(kPage);
