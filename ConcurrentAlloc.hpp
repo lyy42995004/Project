@@ -14,6 +14,7 @@ static void* ConcurrentAlloc(size_t size)
         // 向page cache申请span
         PageCache::GetInstance()->_mtx.lock();
         Span* span = PageCache::GetInstance()->NewSpan(kPage);
+        span->_objSize = size;
         PageCache::GetInstance()->_mtx.unlock();
 
         void* ptr = (void*)(span->_pageID << PAGE_SHIFT);
@@ -35,11 +36,13 @@ static void* ConcurrentAlloc(size_t size)
         return pTLSThreadCache->Allocate(size);
     }
 }
-static void ConcurrentFree(void* ptr, size_t size)
+
+static void ConcurrentFree(void* ptr)
 {
+    Span* span = PageCache::GetInstance()->MapObjectToSpan(ptr);
+    size_t size = span->_objSize;
     if (size > MAX_BYTES)
     {
-        Span* span = PageCache::GetInstance()->MapObjectToSpan(ptr);
         PageCache::GetInstance()->_mtx.lock();
         PageCache::GetInstance()->ReleaseSpanToPageCache(span);
         PageCache::GetInstance()->_mtx.unlock();

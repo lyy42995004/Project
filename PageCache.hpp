@@ -27,7 +27,14 @@ public:
         }
 
         if (!_spanList[k].isEmpty())
-            return _spanList[k].PopFront();
+        {
+            Span* kSpan = _spanList[k].PopFront();
+            // 构建pageid与span指针的映射关系，用于central cache回收span
+            for (PAGE_ID i = 0; i < kSpan->_n; i++)
+                _idSpanMap[kSpan->_pageID + i] = kSpan;
+
+            return kSpan;
+        }
         for (int i = k + 1; i < NPAGES; i++)
         {
             if (!_spanList[i].isEmpty())
@@ -76,6 +83,7 @@ public:
     Span* MapObjectToSpan(void* obj)
     {
         PAGE_ID id = ((PAGE_ID)obj) >> PAGE_SHIFT;
+        std::unique_lock<std::mutex> lock(_mtx);
         auto map = _idSpanMap.find(id);
         if (map != _idSpanMap.end())
             return map->second;

@@ -217,6 +217,7 @@ struct Span
     Span* _next = nullptr;     // 双向链表
     Span* _prev = nullptr;
 
+    size_t _objSize = 0;       // span的大小
     size_t _useCount = 0;      // 被使用的页数
     void* _freeList = nullptr; // 被切好的小块内存的自由链表
 

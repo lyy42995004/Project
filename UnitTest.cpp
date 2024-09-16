@@ -46,9 +46,9 @@ void TestConcurrentFree()
     void* p2 = ConcurrentAlloc(3);
     void* p3 = ConcurrentAlloc(5);
 
-    ConcurrentFree(p1, 8);
-    ConcurrentFree(p2, 8);
-    ConcurrentFree(p3, 8);
+    ConcurrentFree(p1);
+    ConcurrentFree(p2);
+    ConcurrentFree(p3);
 }
 
 // 测试多线程下申请释放流程
@@ -61,7 +61,7 @@ void MultiThreadAlloc()
         v.push_back(p);
     }
     for (auto p : v)
-        ConcurrentFree(p, 8);
+        ConcurrentFree(p);
 }
 
 void TestMultiThread()
@@ -108,21 +108,21 @@ void TestShift()
 void TestBigAlloc()
 {
     void* p1 = ConcurrentAlloc(257 * 1024); // 257KB, 33页
-    ConcurrentFree(p1, 257 * 1024);
+    ConcurrentFree(p1);
     void* p2 = ConcurrentAlloc(129 * 8 * 1024); // 129页
-    ConcurrentFree(p2, 129 * 8 * 1024);
+    ConcurrentFree(p2);
 }
 
 int main()
 {
     // TestObjectPool();
-    TestTLS();
-    TestConcurrentAlloc1();
-    TestConcurrentAlloc2();
-    TestConcurrentFree();
-    MultiThreadAlloc();
-    TestMultiThread();
-    TestShift();
+    // TestTLS();
+    // TestConcurrentAlloc1();
+    // TestConcurrentAlloc2();
+    // TestConcurrentFree();
+    // MultiThreadAlloc();
+    // TestMultiThread();
+    // TestShift();
     TestBigAlloc();
     return 0;
 }

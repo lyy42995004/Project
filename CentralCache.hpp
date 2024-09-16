@@ -56,6 +56,7 @@ public:
         PageCache::GetInstance()->_mtx.lock();
         Span* newSpan = PageCache::GetInstance()->NewSpan(SizeClass::NumMovePage(size)); 
         newSpan->_isUse = true; // 这页被central cache使用
+        newSpan->_objSize = size;
         PageCache::GetInstance()->_mtx.unlock();
         //新申请的span其他线程暂时看不到，无需加锁
 
