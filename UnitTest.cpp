@@ -1,6 +1,5 @@
 #include "ObjectPool.hpp"
 #include "ConcurrentAlloc.hpp"
-#include <ctime>
 
 void Alloc1()
 {
@@ -117,13 +116,13 @@ void TestBigAlloc()
 int main()
 {
     // TestObjectPool();
-    // TestTLS();
-    // TestConcurrentAlloc1();
-    // TestConcurrentAlloc2();
-    // TestConcurrentFree();
-    // MultiThreadAlloc();
-    // TestMultiThread();
-    // TestShift();
-    // TestBigAlloc();
+    TestTLS();
+    TestConcurrentAlloc1();
+    TestConcurrentAlloc2();
+    TestConcurrentFree();
+    MultiThreadAlloc();
+    TestMultiThread();
+    TestShift();
+    TestBigAlloc();
     return 0;
 }

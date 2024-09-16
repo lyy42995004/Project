@@ -17,7 +17,8 @@ public:
         if (k > NPAGES - 1)
         {
             void* ptr = SystemAlloc(k);
-            Span* newSpan = new Span;
+            // Span* newSpan = new Span;
+            Span* newSpan = _spanPool.New();
             newSpan->_pageID = (PAGE_ID)ptr >> PAGE_SHIFT;
             newSpan->_n = k;
             // 建立映射
@@ -32,7 +33,8 @@ public:
             if (!_spanList[i].isEmpty())
             {
                 Span* nSpan = _spanList[i].PopFront(); 
-                Span* kSpan = new Span;
+                // Span* kSpan = new Span;
+                Span* kSpan = _spanPool.New();
 
                 kSpan->_n = k;
                 kSpan->_pageID = nSpan->_pageID;
@@ -52,7 +54,8 @@ public:
             }
         }
         // 没有大于k页的span了，向内存申请大页
-        Span* bigSpan = new Span;
+        // Span* bigSpan = new Span;
+        Span* bigSpan = _spanPool.New();
         // mmap返回的地址是系统页大小（大多数为 4KB，2^12）的整数倍
         // 但不一定是2^13的整数倍，这就会导致左移13位后再右移13位可能会与原来的数不相等
         // 所以不是2^13的整数倍时重新申请
@@ -89,7 +92,8 @@ public:
         {
             void* ptr = (void*)(span->_pageID << PAGE_SHIFT);
             SystemFree(ptr, span->_n);
-            delete span;
+            // delete span;
+            _spanPool.Delete(span);
             return;
         }
         // 对span前后页进行合并，缓解内存碎片问题
@@ -112,7 +116,8 @@ public:
             _spanList[prevSpan->_n].Erase(prevSpan);
             span->_pageID = prevSpan->_pageID;
             span->_n += prevSpan->_n;
-            delete prevSpan;
+            // delete prevSpan;
+            _spanPool.Delete(prevSpan);
         }
         // 向后合并
         while (1)
@@ -129,7 +134,8 @@ public:
 
             _spanList[nextSpan->_n].Erase(nextSpan);
             span->_n += nextSpan->_n;
-            delete nextSpan;
+            // delete nextSpan;
+            _spanPool.Delete(nextSpan);
         }
         _spanList[span->_n].PushFront(span);
         span->_isUse = false;
@@ -140,6 +146,8 @@ public:
 private:
     SpanList _spanList[NPAGES];
     std::unordered_map<PAGE_ID, Span*> _idSpanMap;
+    // 定长内存池控制span的内存申请释放，脱离使用new，delete
+    ObjectPool<Span> _spanPool; 
 public:
     std::mutex _mtx;
 private:

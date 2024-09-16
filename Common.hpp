@@ -6,6 +6,7 @@
 #include <thread>
 #include <mutex>
 #include <unordered_map>
+#include "ObjectPool.hpp"
 using std::cout;
 using std::endl;
 
@@ -229,6 +230,7 @@ public:
     SpanList()
     {
         _head = new Span;
+        // _head = _spanPool.New();
         _head->_next = _head;
         _head->_prev = _head;
     }
@@ -279,6 +281,7 @@ public:
     }
 private:
     Span* _head;
+    // ObjectPool<Span> _spanPool;
 public:
     std::mutex _mtx; // 每一个哈希桶有一个锁
 };
