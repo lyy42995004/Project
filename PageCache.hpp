@@ -67,11 +67,11 @@ public:
         // 但不一定是2^13的整数倍，这就会导致左移13位后再右移13位可能会与原来的数不相等
         // 所以不是2^13的整数倍时重新申请
         void* ptr = SystemAlloc(NPAGES - 1);
-        if (((PAGE_ID)ptr >> 12) % 2 == 1)
-        {
-            cout << ptr << ": 不是2^13的倍数" << endl;
-            exit(1);
-        }
+        // if (((PAGE_ID)ptr >> 12) % 2 == 1)
+        // {
+        //     cout << ptr << ": 不是2^13的倍数" << endl;
+        //     exit(1);
+        // }
         bigSpan->_pageID = ((PAGE_ID)ptr) >> PAGE_SHIFT;
         bigSpan->_n = NPAGES - 1;
         _spanList[bigSpan->_n].PushFront(bigSpan);

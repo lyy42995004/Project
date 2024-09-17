@@ -10,8 +10,8 @@
 void BenchmarkMalloc(size_t ntimes, size_t nworks, size_t rounds)
 {
 	std::vector<std::thread> vthread(nworks);
-	std::atomic<size_t> malloc_costtime(0);
-	std::atomic<size_t> free_costtime(0);
+	std::atomic<size_t> malloc_costtime{0};
+	std::atomic<size_t> free_costtime{0};
 	for (size_t k = 0; k < nworks; ++k)
 	{
 		vthread[k] = std::thread([&, k]() {
@@ -42,19 +42,19 @@ void BenchmarkMalloc(size_t ntimes, size_t nworks, size_t rounds)
 	{
 		t.join();
 	}
-	printf("%u个线程并发执行%u轮次，每轮次malloc %u次: 花费：%u ms\n",
-		nworks, rounds, ntimes, malloc_costtime);
-	printf("%u个线程并发执行%u轮次，每轮次free %u次: 花费：%u ms\n",
-		nworks, rounds, ntimes, free_costtime);
-	printf("%u个线程并发malloc&free %u次，总计花费：%u ms\n",
-		nworks, nworks*rounds*ntimes, malloc_costtime + free_costtime);
+	printf("%u个线程并发执行%u轮次,每轮次malloc %u次: 花费：%u ms\n",
+		nworks, rounds, ntimes, malloc_costtime.load());
+	printf("%u个线程并发执行%u轮次,每轮次free %u次: 花费：%u ms\n",
+		nworks, rounds, ntimes, free_costtime.load());
+	printf("%u个线程并发malloc&free %u次,总计花费: %u ms\n",
+		nworks, nworks*rounds*ntimes, malloc_costtime.load() + free_costtime.load());
 }
 
 void BenchmarkConcurrentMalloc(size_t ntimes, size_t nworks, size_t rounds)
 {
 	std::vector<std::thread> vthread(nworks);
-	std::atomic<size_t> malloc_costtime(0);
-	std::atomic<size_t> free_costtime(0);
+	std::atomic<size_t> malloc_costtime{0};
+	std::atomic<size_t> free_costtime{0};
 	for (size_t k = 0; k < nworks; ++k)
 	{
 		vthread[k] = std::thread([&]() {
@@ -85,12 +85,12 @@ void BenchmarkConcurrentMalloc(size_t ntimes, size_t nworks, size_t rounds)
 	{
 		t.join();
 	}
-	printf("%u个线程并发执行%u轮次，每轮次concurrent alloc %u次: 花费：%u ms\n",
-		nworks, rounds, ntimes, malloc_costtime);
-	printf("%u个线程并发执行%u轮次，每轮次concurrent dealloc %u次: 花费：%u ms\n",
-		nworks, rounds, ntimes, free_costtime);
-	printf("%u个线程并发concurrent alloc&dealloc %u次，总计花费：%u ms\n",
-		nworks, nworks*rounds*ntimes, malloc_costtime + free_costtime);
+	printf("%u个线程并发执行%u轮次,每轮次concurrent alloc %u次: 花费：%u ms\n",
+		nworks, rounds, ntimes, malloc_costtime.load());
+	printf("%u个线程并发执行%u轮次,每轮次concurrent dealloc %u次: 花费：%u ms\n",
+		nworks, rounds, ntimes, free_costtime.load());
+	printf("%u个线程并发concurrent alloc&dealloc %u次,总计花费: %u ms\n",
+		nworks, nworks*rounds*ntimes, malloc_costtime.load() + free_costtime.load());
 }
 
 int main()
