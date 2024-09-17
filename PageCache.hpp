@@ -72,6 +72,8 @@ public:
         //     cout << ptr << ": 不是2^13的倍数" << endl;
         //     exit(1);
         // }
+        while (((PAGE_ID)ptr >> 12) % 2 == 1)
+            ptr = SystemAlloc(NPAGES - 1);
         bigSpan->_pageID = ((PAGE_ID)ptr) >> PAGE_SHIFT;
         bigSpan->_n = NPAGES - 1;
         _spanList[bigSpan->_n].PushFront(bigSpan);

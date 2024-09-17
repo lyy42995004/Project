@@ -1,6 +1,7 @@
 //基准测试
 
 #include <atomic>
+#include <chrono>
 #include "ObjectPool.hpp"
 #include "ConcurrentAlloc.hpp"
 
@@ -19,22 +20,29 @@ void BenchmarkMalloc(size_t ntimes, size_t nworks, size_t rounds)
 			v.reserve(ntimes);
 			for (size_t j = 0; j < rounds; ++j)
 			{
-				size_t begin1 = clock();
+				// size_t begin1 = clock();
+				auto begin1 = std::chrono::high_resolution_clock::now();
 				for (size_t i = 0; i < ntimes; i++)
 				{
-					//v.push_back(malloc(16));
-					v.push_back(malloc((16 + i) % 8192 + 1));
+					v.push_back(malloc(16));
+					// v.push_back(malloc((16 + i) % 8192 + 1));
 				}
-				size_t end1 = clock();
-				size_t begin2 = clock();
+				// size_t end1 = clock();
+				auto end1 = std::chrono::high_resolution_clock::now();
+				// size_t begin2 = clock();
+				auto begin2 = std::chrono::high_resolution_clock::now();
 				for (size_t i = 0; i < ntimes; i++)
 				{
 					free(v[i]);
 				}
-				size_t end2 = clock();
+				// size_t end2 = clock();
+				auto end2 = std::chrono::high_resolution_clock::now();
 				v.clear();
-				malloc_costtime += (end1 - begin1);
-				free_costtime += (end2 - begin2);
+				// malloc_costtime += (end1 - begin1);
+				// free_costtime += (end2 - begin2);
+				malloc_costtime += std::chrono::duration_cast<std::chrono::milliseconds>(end1 - begin1).count();
+                free_costtime += std::chrono::duration_cast<std::chrono::milliseconds>(end2 - begin2).count();
+
 			}
 		});
 	}
@@ -62,22 +70,28 @@ void BenchmarkConcurrentMalloc(size_t ntimes, size_t nworks, size_t rounds)
 			v.reserve(ntimes);
 			for (size_t j = 0; j < rounds; ++j)
 			{
-				size_t begin1 = clock();
+				// size_t begin1 = clock();
+				auto begin1 = std::chrono::high_resolution_clock::now();
 				for (size_t i = 0; i < ntimes; i++)
 				{
-					//v.push_back(ConcurrentAlloc(16));
-					v.push_back(ConcurrentAlloc((16 + i) % 8192 + 1));
+					v.push_back(ConcurrentAlloc(16));
+					// v.push_back(ConcurrentAlloc((16 + i) % 8192 + 1));
 				}
-				size_t end1 = clock();
-				size_t begin2 = clock();
+				// size_t end1 = clock();
+				auto end1 = std::chrono::high_resolution_clock::now();
+				// size_t begin2 = clock();
+				auto begin2 = std::chrono::high_resolution_clock::now();
 				for (size_t i = 0; i < ntimes; i++)
 				{
 					ConcurrentFree(v[i]);
 				}
-				size_t end2 = clock();
+				// size_t end2 = clock();
+				auto end2 = std::chrono::high_resolution_clock::now();
 				v.clear();
-				malloc_costtime += (end1 - begin1);
-				free_costtime += (end2 - begin2);
+				// malloc_costtime += (end1 - begin1);
+				// free_costtime += (end2 - begin2);
+				malloc_costtime += std::chrono::duration_cast<std::chrono::milliseconds>(end1 - begin1).count();
+                free_costtime += std::chrono::duration_cast<std::chrono::milliseconds>(end2 - begin2).count();
 			}
 		});
 	}
@@ -96,12 +110,10 @@ void BenchmarkConcurrentMalloc(size_t ntimes, size_t nworks, size_t rounds)
 int main()
 {
 	size_t n = 10000;
-	cout << "==========================================================" <<
-		endl;
+	cout << "==========================================================" << endl;
 	BenchmarkConcurrentMalloc(n, 4, 10);
 	cout << endl << endl;
 	BenchmarkMalloc(n, 4, 10);
-	cout << "==========================================================" <<
-		endl;
+	cout << "==========================================================" << endl;
 	return 0;
 }
