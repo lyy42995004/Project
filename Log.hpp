@@ -2,6 +2,9 @@
 
 #include <iostream>
 
+#define RED "\033[31m"
+#define COL_END "\033[0m"
+
 enum
 {
     Info = 0,
@@ -17,5 +20,9 @@ enum
 // 简单实现日志函数
 void Log(std::string level, std::string message, std::string file_name, int line)
 {
-    std::cout<<"["<<level<<"]["<<time(nullptr)<<"]["<<message<<"]["<<file_name<<"]["<<line<<"]"<<std::endl;
+    // std::string _level = RED;
+    // _level += level;
+    // _level += COL_END;
+    std::cout << "[" << level << "][" << time(nullptr) << "][" << message 
+              << "][" << file_name << "][" << line << "]" << std::endl;
 }

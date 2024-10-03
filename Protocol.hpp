@@ -4,11 +4,13 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <algorithm>
 #include <unordered_map>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <sys/socket.h>
 #include <sys/sendfile.h>
 #include "Util.hpp"
@@ -27,6 +29,7 @@ enum
     NOT_FOUND = 404
 };
 
+// 根据状态码获取状态码字符串
 static std::string CodeToDesc(int code)
 {
     std::string desc;
@@ -45,6 +48,23 @@ static std::string CodeToDesc(int code)
         break;
     }
     return desc;
+}
+
+// 根据后缀获取资源类型
+static std::string SuffixToDesc(const std::string& suffix)
+{
+    static std::unordered_map<std::string, std::string> suffix_to_desc = 
+    {
+        {".html", "text/html"},
+        {".css", "text/css"},
+        {".js", "application/x-javascript"},
+        {".jpg", "application/x-jpg"},
+        {".xml", "text/xml"}
+    };
+    auto iter = suffix_to_desc.find(suffix);
+    if (iter != suffix_to_desc.end())
+        return iter->second;
+    return "text/html"; //所给后缀未找到则默认该资源为html文件
 }
 
 class HttpRequest
@@ -84,11 +104,13 @@ public:
     int _status_code;    // 状态码
     int _fd;             // 响应文件的fd
     int _size;           // 响应文件的大小
+    std::string _suffix; // 响应文件的后缀
 
     HttpResponse()
         :_blank(LINE_END)
         ,_status_code(OK)
         ,_fd(-1)
+        ,_size(0)
     {}
     ~HttpResponse()
     {}
@@ -116,6 +138,7 @@ public:
         auto& code = _http_response._status_code;
         auto& path = _http_request._path;
         auto& cgi = _http_request._cgi;
+
         // 处理GET请求
         if (_http_request._method == "GET")
         {
@@ -139,6 +162,7 @@ public:
             code = BAD_REQUEST;
             return;
         }
+
         // 给请求资源拼接Web根目录
         path = WEB_ROOT + path;
         // 请求资源以'/'为结尾说明是个目录，加上index.html
@@ -163,17 +187,22 @@ public:
         else
         {
             LOG(Warning, path + " NOT FOUND");
-            code = NOT_FOUND;
+            code = 404;
             return;
         }
-        if (cgi)
-        {
-            ProcessCGI();
-        }
+
+        // 记录响应文件后缀
+        size_t pos = path.rfind('.');
+        if (pos != std::string::npos)
+            _http_response._suffix = path.substr(pos);
         else
-        {
+            _http_response._suffix = ".html";
+
+        // 判断是否执行CGI模式
+        if (cgi)
+            ProcessCGI();
+        else
             ProcessNonCGI();
-        }
     }
     // 发送响应
     void SendResponse()
@@ -220,6 +249,10 @@ private:
         auto& line = _http_request._request_line;
         std::stringstream ss(line);
         ss >> _http_request._method >> _http_request._uri >> _http_request._version;
+
+        // 将请求方法转化为大写
+        auto& method = _http_request._method;
+        std::transform(method.begin(), method.end(), method.begin(), toupper);
     }
     // 解析请求报头
     void ParseHttpRequestHeader()
@@ -271,11 +304,8 @@ private:
             }
         }
     }
-    void ProcessCGI()
-    {
-    }
     // 返回简单的静态网页
-    void ProcessNonCGI()
+    int ProcessNonCGI()
     {
         _http_response._fd = open(_http_request._path.c_str(), O_RDONLY);
         if (_http_response._fd >= 0)
@@ -287,7 +317,97 @@ private:
             status_line += " ";
             status_line += CodeToDesc(_http_response._status_code);
             status_line += LINE_END;
+
+            std::string head_line = "Content-Type: ";
+            head_line += SuffixToDesc(_http_response._suffix);
+            head_line += LINE_END;
+            _http_response._response_header.push_back(head_line);
+            head_line = "Content-Length: ";
+            head_line += std::to_string(_http_response._size);
+            head_line += LINE_END;
+            _http_response._response_header.push_back(head_line);
+            return OK;
         }
+        return 404;
+    }
+    // CGI处理
+    int ProcessCGI()
+    {
+        // 创建管道用于进程间通信
+        int input[2];
+        int output[2];
+        if (pipe(input) < 0)
+        {
+            LOG(Error, "pipe input fail");
+            return 404;
+        }
+        if (pipe(output) < 0)
+        {
+            LOG(Error, "pipe output fail");
+            return 404;
+        }
+
+        auto& bin = _http_request._path;
+        auto& method = _http_request._method;
+        auto& query_string = _http_request._query_string;
+        auto& request_body = _http_request._request_body;
+        pid_t pid = fork();
+        if (pid == 0) // child
+        {
+            // 子进程关闭两个管道对应的读写端
+            close(input[0]);
+            close(output[1]);
+
+            // 将请求方法添加到环境变量
+            std::string method_env = "METHOD=";
+            method_env += _http_request._method;
+            putenv((char*)method_env.c_str());
+            // GET方法时，将query_string添加到环境变量
+            if (method == "GET")
+            {
+                std::string query_string_env = "QUERY_STRING=";
+                query_string_env += query_string;
+                putenv((char*)query_string_env.c_str());
+            }
+
+            // 重定向文件描述符
+            // input[1]写数据 -> 1
+            // output[0] 读数据 -> 0
+            dup2(input[1], 1);
+            dup2(output[0], 0);
+
+            // 将子进程替换成CGI程序
+            execl(bin.c_str(), bin.c_str(), nullptr);
+            exit(1);
+        }
+        else if (pid > 0) // parent
+        {
+            // 父进程关闭两个管道对应的读写端
+            close(input[1]);
+            close(output[0]);
+            // POST方法时，向管道写入请求内容
+            if (method == "POST")
+            {
+                const char* start = request_body.c_str();
+                int total = 0;
+                ssize_t size = 0;
+                // 一直写入直到写完
+                while (size = write(output[1], start + total, request_body.size() - total))
+                    total += size;
+                if (size < 0)
+                    LOG(Error, "write request body fail");
+            }
+            waitpid(pid, nullptr, 0);
+            // 关闭文件描述符
+            close(input[0]);
+            close(input[1]);
+        }
+        else
+        {
+            LOG(Error, "fork fail");
+            return 404;
+        }
+        return OK;
     }
 private:
     int _sock;
