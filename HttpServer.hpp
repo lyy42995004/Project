@@ -1,6 +1,7 @@
 #pragma once
 
 #include "TcpServer.hpp"
+// #include "Protocol.hpp"
 #include "Protocol.hpp"
 #include "Log.hpp"
 
@@ -35,7 +36,7 @@ public:
             LOG(Info, "get a new link");
             int* psock = new int(sock);
             pthread_t tid;
-            pthread_create(&tid, nullptr, Entrance::HandleRequset, psock);
+            pthread_create(&tid, nullptr, Entrance::HandleRequest, psock);
             pthread_detach(tid);
         }
     }

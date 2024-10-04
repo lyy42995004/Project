@@ -4,22 +4,22 @@ cc = g++
 LD_FLAGS = -std=c++11 -lpthread
 src = main.cpp
 cgi_src = cgi/test_cgi.cpp
+cgi_dest = wwwroot/test_cgi
 
-ALL:$(bin) $(cgi)
+ALL:$(bin) $(cgi_dest)
 .PHONY:ALL
 $(bin):$(src)
 	$(cc) -o $@ $^ $(LD_FLAGS)
-$(cgi):$(cgi_src)
+$(cgi_dest):$(cgi_src)
 	$(cc) -o $@ $^ $(LD_FLAGS)
 
 .PHONY:clean
 clean:
 	rm -f $(bin)
-	rm -f $(cgi)
+	rm -f $(cgi_dest)
 
 .PHONY:output
 output:
 	mkdir -p output
 	cp $(bin) output
 	cp -rf wwwroot output
-	cp -rf $(cgi) output/wwwroot

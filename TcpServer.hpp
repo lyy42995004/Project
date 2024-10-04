@@ -55,7 +55,7 @@ public:
         int opt = 1;
         if(setsockopt(_listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
             LOG(Warning, "setsockopt fail");
-        LOG(Info, "create socket success");
+        // LOG(Info, "create socket success");
     }
     // 绑定
     void Bind()
@@ -70,7 +70,7 @@ public:
             LOG(Fatal, "bind fail");
             exit(1);
         }
-        LOG(Info, "bind socket success");
+        // LOG(Info, "bind socket success");
     }
     // 监听
     void Listen()
@@ -80,7 +80,7 @@ public:
             LOG(Fatal, "listen fail");
             exit(1);
         }
-        LOG(Info, "listen socket success");
+        // LOG(Info, "listen socket success");
     }
     int Sock()
     {

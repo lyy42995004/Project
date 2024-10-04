@@ -19,6 +19,7 @@
 #define SEP ": "
 #define WEB_ROOT "wwwroot"
 #define HOME_PAGE "index.html"
+#define PAGE_404 "404.html"
 #define HTTP_VERSION "HTTP/1.0"
 #define LINE_END "\r\n"
 
@@ -26,7 +27,8 @@ enum
 {
     OK = 200,
     BAD_REQUEST = 400,
-    NOT_FOUND = 404
+    NOT_FOUND = 404,
+    SERVER_ERROR = 500
 };
 
 // 根据状态码获取状态码字符串
@@ -39,10 +41,13 @@ static std::string CodeToDesc(int code)
         desc = "OK";
         break;
     case BAD_REQUEST:
-        desc = "BAD_REQUEST";
+        desc = "BAD REQUEST";
         break;
     case NOT_FOUND:
         desc = "NOT FOUND"; 
+        break;
+    case SERVER_ERROR:
+        desc = "SERVER ERROR";
         break;
     default:
         break;
@@ -132,9 +137,10 @@ public:
         ParseHttpRequestHeader();
         RecvHttpRequestBody();
     }
-    // 构建响应
-    void BuildResponse()
+    // 处理请求
+    void HandleRequest()
     {
+        LOG(Info, _http_request._request_line);
         auto& code = _http_response._status_code;
         auto& path = _http_request._path;
         auto& cgi = _http_request._cgi;
@@ -200,9 +206,45 @@ public:
 
         // 判断是否执行CGI模式
         if (cgi)
-            ProcessCGI();
+            code = ProcessCGI();
         else
-            ProcessNonCGI();
+            code = ProcessNonCGI();
+    }
+    // 构建响应
+    void BuildResponse()
+    {
+        int code = _http_response._status_code;
+        // 构建状态行
+        auto& status_line = _http_response._status_line;
+        status_line += HTTP_VERSION;
+        status_line += " ";
+        status_line += std::to_string(code);
+        status_line += " ";
+        status_line += CodeToDesc(code);
+        status_line += LINE_END;
+        // 构建响应报头
+        std::string path = WEB_ROOT;
+        path += '/';
+        switch (code)
+        {
+        case OK:
+            BuildOKResponse();
+            break;
+        case BAD_REQUEST:
+            path += PAGE_404;
+            BuildErrorResponse(path);
+            break;
+        case 404:
+            path += PAGE_404;
+            BuildErrorResponse(path);
+            break;
+        case SERVER_ERROR:
+            path += PAGE_404;
+            BuildErrorResponse(path);
+            break;
+        default:
+            break;
+        }
     }
     // 发送响应
     void SendResponse()
@@ -211,8 +253,22 @@ public:
         for (auto& iter : _http_response._response_header)
             send(_sock, iter.c_str(), iter.size(), 0);
         send(_sock, _http_response._blank.c_str(), _http_response._blank.size(), 0);
-        sendfile(_sock, _http_response._fd, nullptr, _http_response._size);
-        close(_http_response._fd);
+        if (_http_request._cgi) // cgi
+        {
+            auto& response_body = _http_response._response_body;
+            const char* start = response_body.c_str();
+            int total = 0;
+            ssize_t size = 0;
+            // 一直写入直到写完
+            while ((total < response_body.size()) 
+                && (size = write(_sock, start + total, response_body.size() - total)))
+                total += size;
+        }
+        else // 非cgi
+        {
+            sendfile(_sock, _http_response._fd, nullptr, _http_response._size);
+            close(_http_response._fd);
+        }
     }
     ~EndPoint()
     {
@@ -223,7 +279,7 @@ private:
     void RecvHttpRequstLine()
     {
         auto& line = _http_request._request_line;
-        Util::Readline(_sock, line);
+        Util::ReadLine(_sock, line);
         line.resize(line.size()-1);
     }
     // 读取请求报头
@@ -233,7 +289,7 @@ private:
         while (true)
         {
             line.clear();
-            Util::Readline(_sock, line);
+            Util::ReadLine(_sock, line);
             if (line == "\n")
             {
                 _http_request._blank = line;
@@ -304,47 +360,30 @@ private:
             }
         }
     }
-    // 返回简单的静态网页
+    // 非CGI处理
     int ProcessNonCGI()
     {
         _http_response._fd = open(_http_request._path.c_str(), O_RDONLY);
         if (_http_response._fd >= 0)
-        {
-            auto& status_line = _http_response._status_line;
-            status_line = HTTP_VERSION;
-            status_line += " ";
-            status_line += std::to_string(_http_response._status_code);
-            status_line += " ";
-            status_line += CodeToDesc(_http_response._status_code);
-            status_line += LINE_END;
-
-            std::string head_line = "Content-Type: ";
-            head_line += SuffixToDesc(_http_response._suffix);
-            head_line += LINE_END;
-            _http_response._response_header.push_back(head_line);
-            head_line = "Content-Length: ";
-            head_line += std::to_string(_http_response._size);
-            head_line += LINE_END;
-            _http_response._response_header.push_back(head_line);
             return OK;
-        }
         return 404;
     }
-    // CGI处理
+    // CGI处理，获得_response_body
     int ProcessCGI()
     {
+        LOG(Info, "process cgi");
         // 创建管道用于进程间通信
         int input[2];
         int output[2];
         if (pipe(input) < 0)
         {
             LOG(Error, "pipe input fail");
-            return 404;
+            return SERVER_ERROR;
         }
         if (pipe(output) < 0)
         {
             LOG(Error, "pipe output fail");
-            return 404;
+            return SERVER_ERROR;
         }
 
         auto& bin = _http_request._path;
@@ -369,9 +408,16 @@ private:
                 query_string_env += query_string;
                 putenv((char*)query_string_env.c_str());
             }
+            // POST方法时，将content_length添加到环境变量
+            if (method == "POST")
+            {
+                std::string content_length_env = "CONTENT_LENGTH=";
+                content_length_env += std::to_string(_http_request._content_length);
+                putenv((char*)content_length_env.c_str());
+            }
 
             // 重定向文件描述符
-            // input[1]写数据 -> 1
+            // input[1]  写数据 -> 1
             // output[0] 读数据 -> 0
             dup2(input[1], 1);
             dup2(output[0], 0);
@@ -392,12 +438,31 @@ private:
                 int total = 0;
                 ssize_t size = 0;
                 // 一直写入直到写完
-                while (size = write(output[1], start + total, request_body.size() - total))
+                while ((total < _http_request._content_length) 
+                    && (size = write(output[1], start + total, request_body.size() - total)))
                     total += size;
                 if (size < 0)
                     LOG(Error, "write request body fail");
             }
-            waitpid(pid, nullptr, 0);
+
+            // 读取cgi程序向管道中写入的数据
+            auto& response_body = _http_response._response_body;
+            char ch = 0;
+            while (read(input[0], &ch, 1) > 0)
+                response_body.push_back(ch);
+
+            // 等待子进程退出
+            int status = 0;
+            pid_t ret = waitpid(pid, &status, 0);
+            if (ret == pid)
+                if (WIFEXITED(status)) // 判断进程是否正常退出
+                    if (WEXITSTATUS(status) == 0) // 判断进程退出码 
+                        return OK;
+                    else
+                        return BAD_REQUEST;
+                else
+                    return SERVER_ERROR;
+
             // 关闭文件描述符
             close(input[0]);
             close(input[1]);
@@ -405,10 +470,47 @@ private:
         else
         {
             LOG(Error, "fork fail");
-            return 404;
+            return SERVER_ERROR;
         }
         return OK;
     }
+    // 构建OK对应响应报头
+    void BuildOKResponse()
+    {
+        std::string head_line = "Content-Type: ";
+        head_line += SuffixToDesc(_http_response._suffix);
+        head_line += LINE_END;
+        _http_response._response_header.push_back(head_line);
+        head_line = "Content-Length: ";
+        if (_http_request._cgi) // cgi
+            head_line += std::to_string(_http_response._response_body.size());
+        else
+            head_line += std::to_string(_http_response._size);
+        head_line += LINE_END;
+        _http_response._response_header.push_back(head_line);
+    }
+    // 出错时，构建对应响应报头
+    void BuildErrorResponse(std::string path)
+    {
+        _http_request._cgi = false;
+        _http_response._fd = open(path.c_str(), O_RDONLY);
+        if (_http_response._fd > 0)
+        {
+            struct stat st;
+            stat(path.c_str(), &st);
+            _http_response._size = st.st_size;
+            std::string line = "Content-Length: text.html";
+            line += LINE_END;
+            _http_response._response_header.push_back(line);
+            line = "Content-Length: ";
+            line += std::to_string(st.st_size);
+            line += LINE_END;
+            _http_response._response_header.push_back(line);
+        }
+        else
+            LOG(Error, "open fail");
+    }
+
 private:
     int _sock;
     HttpRequest _http_request;
@@ -418,7 +520,7 @@ private:
 class Entrance
 {
 public:
-    static void* HandleRequset(void* psock)
+    static void* HandleRequest(void* psock)
     {
         LOG(Info, "handle request begin");
         int sock = *(int*)psock;
@@ -434,6 +536,7 @@ public:
 
         EndPoint* ep = new EndPoint(sock);
         ep->RecvHttpRequest();
+        ep->HandleRequest();
         ep->BuildResponse();
         ep->SendResponse();
         delete ep;

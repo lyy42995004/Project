@@ -10,7 +10,7 @@ class Util
 {
 public:
     // 读取一行数据
-    static int Readline(int sock, std::string& out)
+    static int ReadLine(int sock, std::string& out)
     {
         char ch = '1';
         while (ch != '\n')
