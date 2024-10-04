@@ -127,15 +127,22 @@ class EndPoint
 public:
     EndPoint(int sock)
         :_sock(sock)
+        ,_stop(false)
     {}
+    // 判断是否需要停止服务
+    bool IsStop()
+    {
+        return _stop;
+    }
     // 读取并解析请求
     void RecvHttpRequest()
     {
-        RecvHttpRequstLine();
-        RecvHttpRequstHeader();
-        ParseHttpRequestLine();
-        ParseHttpRequestHeader();
-        RecvHttpRequestBody();
+        if (!RecvHttpRequstLine() && !RecvHttpRequstHeader())
+        {
+            ParseHttpRequestLine();
+            ParseHttpRequestHeader();
+            RecvHttpRequestBody();
+        }
     }
     // 处理请求
     void HandleRequest()
@@ -276,20 +283,28 @@ public:
     }
 private:
     // 读取请求行
-    void RecvHttpRequstLine()
+    bool RecvHttpRequstLine()
     {
         auto& line = _http_request._request_line;
-        Util::ReadLine(_sock, line);
+        if (Util::ReadLine(_sock, line) <= 0)
+        {
+            _stop = true;
+            return _stop;
+        }
         line.resize(line.size()-1);
     }
     // 读取请求报头
-    void RecvHttpRequstHeader()
+    bool RecvHttpRequstHeader()
     {
         std::string line;
         while (true)
         {
             line.clear();
-            Util::ReadLine(_sock, line);
+            if (Util::ReadLine(_sock, line) <= 0)
+            {
+                _stop = true;
+                return _stop;
+            }
             if (line == "\n")
             {
                 _http_request._blank = line;
@@ -340,7 +355,7 @@ private:
         return false;
     }
     // 读取请求正文
-    void RecvHttpRequestBody()
+    bool RecvHttpRequestBody()
     {
         if (IsNeedRecvHttpRequestBody())
         {
@@ -356,7 +371,10 @@ private:
                     content_length--;
                 }
                 else
-                    break;
+                {
+                    _stop = true;
+                    return _stop;
+                }
             }
         }
     }
@@ -499,9 +517,10 @@ private:
             struct stat st;
             stat(path.c_str(), &st);
             _http_response._size = st.st_size;
-            std::string line = "Content-Length: text.html";
+            std::string line = "Content-Type: text/html";
             line += LINE_END;
             _http_response._response_header.push_back(line);
+
             line = "Content-Length: ";
             line += std::to_string(st.st_size);
             line += LINE_END;
@@ -513,18 +532,23 @@ private:
 
 private:
     int _sock;
+    bool _stop;
     HttpRequest _http_request;
     HttpResponse _http_response;
 };
 
-class Entrance
+class CallBack
 {
 public:
-    static void* HandleRequest(void* psock)
+    CallBack()
+    {}
+    void operator()(int sock)
+    {
+        HandleRequest(sock);
+    }
+    void HandleRequest(int sock)
     {
         LOG(Info, "handle request begin");
-        int sock = *(int*)psock;
-        delete (int*)psock;
 
         // // for test
         // std::cout << "get a new link ... " << sock << std::endl;
@@ -536,12 +560,17 @@ public:
 
         EndPoint* ep = new EndPoint(sock);
         ep->RecvHttpRequest();
-        ep->HandleRequest();
-        ep->BuildResponse();
-        ep->SendResponse();
+        if (!ep->IsStop())
+        {
+            ep->HandleRequest();
+            ep->BuildResponse();
+            ep->SendResponse();
+        }
+        else
+            LOG(Warning, "recv error, stop server");
         delete ep;
         LOG(Info, "handle request end");
-
-        return nullptr;
     }
+    ~CallBack()
+    {}
 };
